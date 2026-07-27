@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>極音ダッシュボード - リアルタイム騒音計測・警報システム</title>
+  <meta name="description" content="マイク入力からリアルタイムに騒音レベルを計測し、目安比較、トレンドグラフ表示、カスタムしきい値アラート、CSV保存が可能な高精度ダッシュボード。">
+  <meta property="og:title" content="極音ダッシュボード">
+  <meta property="og:description" content="ブラウザのマイクを使ったリアルタイム騒音計測・警報システム">
+  <meta property="og:type" content="website">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="極音ダッシュボード">
+  <meta name="twitter:description" content="ブラウザのマイクを使ったリアルタイム騒音計測・警報システム">
+
+  <!-- Google Fonts: Outfit & Noto Sans JP -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 危険レベル (要対応) オーバーレイ表示 -->
+  <div class="danger-overlay" id="dangerOverlay">
+    <div class="danger-box">
+      <i class="fa-solid fa-triangle-exclamation danger-icon"></i>
+      <span class="danger-title">⚠ 要対応</span>
+      <span class="danger-desc">騒音レベルが基準値を超過しています！</span>
+      <button class="btn btn-secondary btn-dismiss-danger" id="btnDismissDanger">警告を閉じる</button>
+    </div>
+  </div>
+
+  <div class="app-container" id="appContainer">
+    <!-- ヘッダー -->
+    <header class="app-header">
+      <div class="logo-area">
+        <i class="fa-solid fa-volume-high logo-icon"></i>
+        <h1>極音ダッシュボード <span class="sub-title">Noise Measurement & Alert System</span></h1>
+      </div>
+      <div class="header-controls">
+        <button id="btnGrantMic" class="btn btn-primary btn-mic">
+          <i class="fa-solid fa-microphone-lines"></i> マイクを許可
+        </button>
+        <div class="status-badge" id="micStatusBadge">
+          <span class="status-dot"></span>
+          <span class="status-text" id="micStatusText">マイク未接続</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ダッシュボードメインレイアウト -->
+    <main class="dashboard-grid">
+      
+      <!-- ①現在の騒音レベル（最重要・約40%スペース相当） -->
+      <section class="card level-card" id="levelCard">
+        <div class="card-title-sub">現在の騒音レベル</div>
+        <div class="realtime-value-wrap">
+          <span class="realtime-value" id="currentDb">0</span>
+          <span class="unit">dB</span>
+        </div>
+        <!-- ②状態（色＋文字） -->
+        <div class="status-indicator-bar" id="statusIndicator">
+          <span class="status-emoji" id="statusEmoji">🟦</span>
+          <span class="status-text" id="statusText">待機中</span>
+        </div>
+      </section>
+
+      <!-- ③どの場所と同じくらい？ (目安リスト) -->
+      <section class="card comparison-card">
+        <h2><i class="fa-solid fa-house-laptop"></i> どの場所と同じくらい？</h2>
+        <div class="comparison-list" id="comparisonList">
+          <div class="comparison-item" data-db="100">
+            <span class="comp-db">100 dB</span>
+            <span class="comp-place">ライブ会場前方</span>
+          </div>
+          <div class="comparison-item" data-db="90">
+            <span class="comp-db">90 dB</span>
+            <span class="comp-place">電車のガード下</span>
+          </div>
+          <div class="comparison-item" data-db="80">
+            <span class="comp-db">80 dB</span>
+            <span class="comp-place">交通量の多い道路</span>
+          </div>
+          <div class="comparison-item" data-db="70">
+            <span class="comp-db">70 dB</span>
+            <span class="comp-place">掃除機</span>
+          </div>
+          <div class="comparison-item" data-db="60">
+            <span class="comp-db">60 dB</span>
+            <span class="comp-place">通常の会話</span>
+          </div>
+          <div class="comparison-item" data-db="50">
+            <span class="comp-db">50 dB</span>
+            <span class="comp-place">静かなオフィス</span>
+          </div>
+          <div class="comparison-item" data-db="40">
+            <span class="comp-db">40 dB</span>
+            <span class="comp-place">住宅街</span>
+          </div>
+          <div class="comparison-item" data-db="30">
+            <span class="comp-db">30 dB</span>
+            <span class="comp-place">図書館</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ④推移グラフ -->
+      <section class="card graph-card">
+        <div class="card-header-flex">
+          <h2><i class="fa-solid fa-chart-line"></i> 直近1分の推移グラフ</h2>
+          <div class="graph-badges">
+            <span class="update-badge">1秒更新</span>
+            <span class="recording-badge" id="recordingBadge">
+              <span class="pulse-dot-red"></span> RECORDING
+            </span>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="noiseChart"></canvas>
+        </div>
+      </section>
+
+      <!-- ⑤Peak / Average -->
+      <section class="card stats-card">
+        <div class="stats-item peak">
+          <div class="stat-label"><i class="fa-solid fa-arrow-trend-up"></i> Peak</div>
+          <div class="stat-value"><span id="peakDb">0</span> <span class="stat-unit">dB</span></div>
+        </div>
+        <div class="stats-item average">
+          <div class="stat-label"><i class="fa-solid fa-calculator"></i> Average</div>
+          <div class="stat-value"><span id="avgDb">0</span> <span class="stat-unit">dB</span></div>
+        </div>
+      </section>
+
+      <!-- ⑥設定エリア (しきい値設定 & アラート) -->
+      <section class="card settings-card">
+        <h2><i class="fa-solid fa-sliders"></i> 設定・アラート設定</h2>
+        
+        <div class="settings-grid">
+          <!-- しきい値設定 -->
+          <div class="setting-block">
+            <h3>騒音レベル判定しきい値</h3>
+            <div class="threshold-inputs">
+              <div class="input-row">
+                <span class="threshold-label">🟦 静か ↔ 🟩 普通</span>
+                <input type="number" id="thresholdNormal" value="40" min="0" max="120" class="num-input">
+                <span class="input-unit">dB</span>
+              </div>
+              <div class="input-row">
+                <span class="threshold-label">🟩 普通 ↔ 🟨 少しうるさい</span>
+                <input type="number" id="thresholdSlightly" value="60" min="0" max="120" class="num-input">
+                <span class="input-unit">dB</span>
+              </div>
+              <div class="input-row">
+                <span class="threshold-label">🟨 少しうるさい ↔ 🟥 うるさい</span>
+                <input type="number" id="thresholdNoisy" value="75" min="0" max="120" class="num-input">
+                <span class="input-unit">dB</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- アラート設定 -->
+          <div class="setting-block">
+            <h3>アラート警告設定</h3>
+            <div class="alert-controls">
+              <label class="toggle-container">
+                <input type="checkbox" id="alertEnabled" checked>
+                <span class="toggle-slider"></span>
+                <span class="toggle-label"><i class="fa-solid fa-bell"></i> アラートON</span>
+              </label>
+
+              <div class="volume-slider-group">
+                <label class="setting-title-small">アラート音量: <span id="volValText">4</span></label>
+                <div class="vol-indicator-wrapper">
+                  <input type="range" id="alertVolume" min="0" max="7" value="4" class="vol-range">
+                  <div class="vol-blocks" id="volBlocks">
+                    <span class="vol-block active"></span>
+                    <span class="vol-block active"></span>
+                    <span class="vol-block active"></span>
+                    <span class="vol-block active"></span>
+                    <span class="vol-block"></span>
+                    <span class="vol-block"></span>
+                    <span class="vol-block"></span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="danger-duration-group">
+                <label class="setting-title-small">危険警報検知 (秒間継続): <span id="dangerSecText">5</span>秒</label>
+                <input type="range" id="dangerDuration" min="1" max="15" value="5" class="slider-styled">
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ⑧ログ機能 -->
+      <section class="card log-card">
+        <div class="card-header-flex">
+          <h2><i class="fa-solid fa-list-ul"></i> 測定ログ履歴</h2>
+          <span class="log-count" id="logCount">合計: 0件</span>
+        </div>
+        
+        <div class="table-container">
+          <table class="log-table" id="logTable">
+            <thead>
+              <tr>
+                <th>時刻</th>
+                <th>騒音レベル (dB)</th>
+                <th>状態</th>
+                <th>場所の目安</th>
+              </tr>
+            </thead>
+            <tbody id="logBody">
+              <tr class="empty-row">
+                <td colspan="4">計測中のデータはありません。「計測開始」を押してください。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- アクションコントロールバー (底面) -->
+      <section class="control-bar-card">
+        <div class="measure-controls">
+          <button id="btnStart" class="btn btn-success" disabled>
+            <i class="fa-solid fa-play"></i> 計測開始
+          </button>
+          <button id="btnStop" class="btn btn-danger" disabled>
+            <i class="fa-solid fa-stop"></i> 計測停止
+          </button>
+        </div>
+        <div class="action-controls">
+          <button id="btnExport" class="btn btn-secondary">
+            <i class="fa-solid fa-file-csv"></i> CSV出力
+          </button>
+          <button id="btnReset" class="btn btn-secondary">
+            <i class="fa-solid fa-trash-can"></i> ログクリア
+          </button>
+          <button id="btnFullscreen" class="btn btn-secondary">
+            <i class="fa-solid fa-expand"></i> 全画面
+          </button>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="app-footer">
+      <p>&copy; 2026 極音ダッシュボード - 高機能騒音監視システム</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
